@@ -15,7 +15,7 @@ require('dotenv').config({
 });
 
 // MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://bandihemanth7731:bandi824@esp.zrwur.mongodb.net/?retryWrites=true&w=majority&appName=ESP', {
+mongoose.connect('mongodb+srv://bandihemanth7731:bandi824@esp.zrwur.mongodb.net/?retryWrites=true&w=majority&appName=ESP', {
     useNewUrlParser: true,
     useUnifiedTopology: true
 }).then(() => console.log('Connected to MongoDB'))
