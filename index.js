@@ -1,11 +1,18 @@
-const express = require('express');
-const WebSocket = require('ws');
-const mongoose = require('mongoose');
+var express = require('express');
+var app = express();
+var WebSocketServer = require('websocket').server;
+var http = require('http');
+var server = http.createServer(app);
+var mongoose = require('mongoose');
 const cors = require('cors');
 
-const app = express();
+// Enable CORS
 app.use(cors());
 app.use(express.json());
+// Load development environment.
+require('dotenv').config({
+    path: './dev.env'
+});
 
 // MongoDB Connection
 mongoose.connect('mongodb+srv://bandihemanth7731:bandi824@esp.zrwur.mongodb.net/?retryWrites=true&w=majority&appName=ESP', {
@@ -20,38 +27,51 @@ const LightSchema = new mongoose.Schema({
 });
 const Light = mongoose.model('Light', LightSchema);
 
-// WebSocket Server
-const wss = new WebSocket.Server({ port: 8080 });
-let connectedClients = [];
-
-wss.on('connection', (ws) => {
-    console.log('Client connected');
-    connectedClients.push(ws);
-
-    ws.on('close', () => {
-        console.log('Client disconnected');
-        connectedClients = connectedClients.filter((client) => client !== ws);
-    });
+//GET I
+app.get('/api/v1/test', function (req, res) {
+    console.log('GET Request');
+    let results = { response: 'Hello World! Welcome to JP Learning :)' };
+    return res.status(200).json(results);
 });
 
-// REST API to Update Light Status
+app.post('/api/v1/test', function (req, res) {
+    console.log('POST Request');
+    console.log('POST req.body:', req.body);
+    let results = { response: 'Successfully POST :)' };
+    return res.status(201).json(results);
+});
+
+app.put('/api/v1/test/:id', function (req, res) {
+    console.log('PUT Request');
+    console.log('PUT req.body:', req.body);
+    let results = { response: 'Successfully PUT :)', id: req.params.id };
+    return res.status(200).json(results);
+});
+
+app.delete('/api/v1/test/:id', function (req, res) {
+    console.log('DELETE Request');
+    let results = { response: 'Successfully DELETE :)', id: req.params.id };
+    return res.status(200).json(results);
+});
+
+// Status update endpoint
 app.post('/update-status', async (req, res) => {
     const { status } = req.body;
 
     try {
-        // Find and update the existing record, or create if none exists
-        await Light.findOneAndUpdate(
-            {}, // empty filter to match any document
-            { status },
-            { upsert: true } // create if doesn't exist
-        );
+        await Light.findOneAndUpdate({}, { status }, { upsert: true });
 
-        // Notify WebSocket clients
+        // Notify web clients
         connectedClients.forEach((client) => {
-            if (client.readyState === WebSocket.OPEN) {
+            if (client.readyState === client.OPEN) {
                 client.send(JSON.stringify({ status }));
             }
         });
+
+        // Notify ESP8266
+        if (espClient && espClient.readyState === espClient.OPEN) {
+            espClient.send(JSON.stringify({ status }));
+        }
 
         res.send('Light status updated successfully');
     } catch (err) {
@@ -60,7 +80,65 @@ app.post('/update-status', async (req, res) => {
     }
 });
 
-// Start the Express server
-app.listen(5000, () => {
-    console.log('Server running on http://localhost:5000');
+// Start HTTP server
+server.listen(8080, function () {
+    console.log(`Example app listening on port 8080!`);
 });
+
+// Track connected clients
+const connectedClients = new Set();
+let espClient = null;
+
+// WebSocket server setup
+const wsServer = new WebSocketServer({
+    httpServer: server,
+    autoAcceptConnections: false
+});
+
+function originIsAllowed(origin) {
+    // TODO: Implement proper origin validation
+    return true;
+}
+
+// Handle WebSocket connection requests
+wsServer.on('request', function(request) {
+    if (!originIsAllowed(request.origin)) {
+        request.reject();
+        console.log((new Date()) + ' Connection from origin ' + request.origin + ' rejected.');
+        return;
+    }
+    
+    const connection = request.accept(null, request.origin);
+    console.log((new Date()) + ' Connection accepted.');
+    
+    // Check if the connection is from ESP8266 (you might want to add proper authentication)
+    const isESP = request.httpRequest.headers['user-agent']?.includes('ESP8266');
+    
+    if (isESP) {
+        espClient = connection;
+        console.log('ESP8266 connected');
+    } else {
+        connectedClients.add(connection);
+        console.log('Web client connected');
+    }
+    
+    connection.on('message', function(message) {
+        if (message.type === 'utf8') {
+            console.log('Received Message: ' + message.utf8Data);
+            // Handle the message as needed
+        }
+    });
+    
+    connection.on('close', function(reasonCode, description) {
+        if (connection === espClient) {
+            espClient = null;
+            console.log('ESP8266 disconnected');
+        } else {
+            connectedClients.delete(connection);
+            console.log('Web client disconnected');
+        }
+    });
+});
+
+
+
