@@ -15,7 +15,7 @@ require('dotenv').config({
 });
 
 // MongoDB Connection
-mongoose.connect('mongodb+srv://bandihemanth7731:bandi824@esp.zrwur.mongodb.net/?retryWrites=true&w=majority&appName=ESP', {
+mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://bandihemanth7731:bandi824@esp.zrwur.mongodb.net/?retryWrites=true&w=majority&appName=ESP', {
     useNewUrlParser: true,
     useUnifiedTopology: true
 }).then(() => console.log('Connected to MongoDB'))
@@ -80,9 +80,12 @@ app.post('/update-status', async (req, res) => {
     }
 });
 
-// Start HTTP server
-server.listen(8080, function () {
-    console.log(`Example app listening on port 8080!`);
+// Update server startup
+const PORT = process.env.PORT || 8080;
+server.listen(PORT, function () {
+    console.log(`Server listening on port ${PORT}!`);
+}).on('error', function(err) {
+    console.error('Server failed to start:', err);
 });
 
 // Track connected clients
