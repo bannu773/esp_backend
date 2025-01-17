@@ -80,6 +80,16 @@ app.post('/update-status', async (req, res) => {
     }
 });
 
+app.get('/get-status', async (req, res) => {
+    try {
+        const lightStatus = await Light.findOne();
+        res.json({ status: lightStatus ? lightStatus.status : 'OFF' });
+    } catch (err) {
+        console.error('Error fetching light status:', err);
+        res.status(500).send('Error fetching light status');
+    }
+});
+
 // Update server startup
 const PORT = process.env.PORT || 8080;
 server.listen(PORT, function () {
@@ -120,6 +130,14 @@ wsServer.on('request', function(request) {
     if (isESP) {
         espClient = connection;
         console.log('ESP8266 connected');
+        
+        // Send initial status to ESP8266 when it connects
+        Light.findOne()
+            .then(light => {
+                const status = light ? light.status : 'OFF';
+                connection.send(JSON.stringify({ status }));
+            })
+            .catch(err => console.error('Error fetching initial status:', err));
     } else {
         connectedClients.add(connection);
         console.log('Web client connected');
